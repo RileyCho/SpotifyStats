@@ -1,65 +1,219 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Spotify Most Played Track</title>
-</head>
-<body>
-  <h1>Your Most Played Track</h1>
-  <div id="track-info">
-    <img id="track-image" alt="Track Image" style="max-width: 300px; display: none;">
-    <p id="track-name"></p>
-  </div>
-  <script>
-    const clientId = '9b978a526547438481e18fe6155bf2f4'; // Replace with your client ID
-    const redirectUri = 'https://rileycho.github.io/SpotifyStats'; // Replace with your redirect URI
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spotify Top 20 Tracks</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        background-color: aquamarine;
+        padding: 0;
+        margin: 0;
+        height: 100%;
+      }
+      .track {
+        margin: 20px;
+        display: inline-block;
+        width: 200px;
+      }
+      .track img {
+        max-width: 100%;
+        border-radius: 10px;
+      }
+      .track-name,
+      .artist-name {
+        font-size: 16px;
+        margin: 5px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Your Top 20 Tracks</h1>
+    <div id="tracks-container"></div>
+    <script
+      async
+      src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"
+    ></script>
 
-    const authEndpoint = 'https://accounts.spotify.com/authorize';
-    const apiEndpoint = 'https://api.spotify.com/v1/me/top/tracks';
-    const scopes = ['user-top-read'];
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@latest/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@latest/examples/jsm/"
+        }
+      }
+    </script>
+    <script type="module">
+      const clientId = "9b978a526547438481e18fe6155bf2f4";
+      // const redirectUri = "http://127.0.0.1:5500/index.html";
+      const redirectUri = "https://rileycho.github.io/SpotifyStats";
 
-    const hash = window.location.hash.substring(1)
-      .split('&')
-      .reduce((acc, item) => {
-        let parts = item.split('=');
-        acc[parts[0]] = decodeURIComponent(parts[1]);
-        return acc;
-      }, {});
+      const authEndpoint = "https://accounts.spotify.com/authorize";
+      const apiEndpoint = "https://api.spotify.com/v1/me/top/tracks";
+      const scopes = ["user-top-read"];
 
-    window.location.hash = '';
+      // this is for the access token and is used to access spotify's api
+      const hash = window.location.hash
+        .substring(1)
+        .split("&")
+        .reduce((acc, item) => {
+          let parts = item.split("=");
+          acc[parts[0]] = decodeURIComponent(parts[1]);
+          return acc;
+        }, {});
 
-    let accessToken = hash.access_token;
+      window.location.hash = "";
 
-    if (!accessToken) {
-      const authUrl = `${authEndpoint}?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scopes.join(
-        '%20'
-      )}&response_type=token&show_dialog=true`;
-      window.location = authUrl;
-    } else {
-      fetch(apiEndpoint + '?limit=1', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      })
-        .then((response) => response.json())
-        .then((data) => {
-          const track = data.items[0];
-          if (track) {
-            document.getElementById('track-image').src = track.album.images[0].url;
-            document.getElementById('track-image').style.display = 'block';
-            document.getElementById('track-name').textContent = `Track: ${track.name} by ${track.artists
-              .map((artist) => artist.name)
-              .join(', ')}`;
-          } else {
-            document.getElementById('track-name').textContent = 'No data available.';
-          }
+      let accessToken = hash.access_token;
+
+      // three js imports
+      import * as THREE from "three";
+
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+      let camera, scene, renderer;
+      let mesh;
+
+      // camera set up
+      camera = new THREE.PerspectiveCamera(
+        70,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        100
+      );
+      camera.position.z = 2;
+
+      scene = new THREE.Scene();
+
+      let group = new THREE.Group();
+      scene.add(group);
+
+      // temp cube loader!
+      //   const texture = new THREE.TextureLoader().load("temp.jpeg");
+      //   texture.colorSpace = THREE.SRGBColorSpace;
+
+      //   const geometry = new THREE.BoxGeometry(.01, 1, 1);
+      //   const material = new THREE.MeshBasicMaterial({ map: texture });
+
+      //   mesh = new THREE.Mesh(geometry, material);
+      //   scene.add(mesh);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setAnimationLoop(animate);
+      document.body.appendChild(renderer.domElement);
+
+      // orbit control set up
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.minDistance = 2;
+      controls.maxDistance = 250;
+
+      // animation function
+      function animate() {
+        // mesh.rotation.x += 0.005;
+        // mesh.rotation.y += 0.01;
+
+        renderer.render(scene, camera);
+      }
+
+      if (!accessToken) {
+        const authUrl = `${authEndpoint}?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scopes.join(
+          "%20"
+        )}&response_type=token&show_dialog=true`;
+        window.location = authUrl;
+      } else {
+        fetch(`${apiEndpoint}?limit=20`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
         })
-        .catch((error) => {
-          console.error('Error fetching data:', error);
-          document.getElementById('track-name').textContent = 'Error fetching data.';
-        });
-    }
-  </script>
-</body>
+          .then((response) => response.json())
+          .then((data) => {
+            const container = document.getElementById("tracks-container");
+            container.innerHTML = "";
+
+            data.items.forEach((track) => {
+              const trackDiv = document.createElement("div");
+              trackDiv.className = "track";
+
+              const trackImage = document.createElement("img");
+              trackImage.src = track.album.images[0].url;
+              trackDiv.appendChild(trackImage);
+
+              const trackName = document.createElement("div");
+              trackName.className = "track-name";
+              trackName.textContent = track.name;
+              trackDiv.appendChild(trackName);
+
+              const artistNames = track.artists
+                .map((artist) => artist.name)
+                .join(", ");
+              const artistDiv = document.createElement("div");
+              artistDiv.className = "artist-name";
+              artistDiv.textContent = `by ${artistNames}`;
+              trackDiv.appendChild(artistDiv);
+
+              container.appendChild(trackDiv);
+            });
+          })
+          .catch((error) => {
+            console.error("Error fetching data:", error);
+            document.getElementById("tracks-container").textContent =
+              "Error fetching data.";
+          });
+      }
+
+      // if (!accessToken) {
+      //   // if there is no access token then we need to make our own using the given redirecturi and clientid
+      //   const authUrl = `${authEndpoint}?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scopes.join(
+      //     "%20"
+      //   )}&response_type=token&show_dialog=true`;
+      //   window.location = authUrl;
+      // } else {
+      //   // this is gathering all of the track objects that we will use
+      //   fetch(`${apiEndpoint}?limit=25`, {
+      //     headers: {
+      //       Authorization: `Bearer ${accessToken}`,
+      //     },
+      //   })
+      //     .then((response) => response.json())
+      //     .then((data) => {
+      //       // this is the loop for each track
+      //       // left off herrrrrrrrrrrrrreeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      //       data.items.forEach((track) => {
+      //         const trackDiv = document.createElement("div");
+      //         trackDiv.className = "track";
+
+      //         const trackImage = document.createElement("img");
+      //         trackImage.src = track.album.images[0].url;
+      //         trackDiv.appendChild(trackImage);
+
+      //         const trackName = document.createElement("div");
+      //         trackName.className = "track-name";
+      //         trackName.textContent = track.name;
+      //         trackDiv.appendChild(trackName);
+
+      //         const artistNames = track.artists
+      //           .map((artist) => artist.name)
+      //           .join(", ");
+      //         const artistDiv = document.createElement("div");
+      //         artistDiv.className = "artist-name";
+      //         artistDiv.textContent = `by ${artistNames}`;
+      //         trackDiv.appendChild(artistDiv);
+      //       });
+      //     });
+      // }
+
+      window.addEventListener("resize", onWindowResize);
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+    </script>
+  </body>
 </html>
