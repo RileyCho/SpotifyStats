@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spotify Most Played Track</title>
+</head>
+<body>
+  <h1>Your Most Played Track</h1>
+  <div id="track-info">
+    <img id="track-image" alt="Track Image" style="max-width: 300px; display: none;">
+    <p id="track-name"></p>
+  </div>
+  <script>
+    const clientId = '9b978a526547438481e18fe6155bf2f4'; // Replace with your client ID
+    const redirectUri = 'http://localhost/callback'; // Replace with your redirect URI
+
+    const authEndpoint = 'https://accounts.spotify.com/authorize';
+    const apiEndpoint = 'https://api.spotify.com/v1/me/top/tracks';
+    const scopes = ['user-top-read'];
+
+    const hash = window.location.hash.substring(1)
+      .split('&')
+      .reduce((acc, item) => {
+        let parts = item.split('=');
+        acc[parts[0]] = decodeURIComponent(parts[1]);
+        return acc;
+      }, {});
+
+    window.location.hash = '';
+
+    let accessToken = hash.access_token;
+
+    if (!accessToken) {
+      const authUrl = `${authEndpoint}?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scopes.join(
+        '%20'
+      )}&response_type=token&show_dialog=true`;
+      window.location = authUrl;
+    } else {
+      fetch(apiEndpoint + '?limit=1', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          const track = data.items[0];
+          if (track) {
+            document.getElementById('track-image').src = track.album.images[0].url;
+            document.getElementById('track-image').style.display = 'block';
+            document.getElementById('track-name').textContent = `Track: ${track.name} by ${track.artists
+              .map((artist) => artist.name)
+              .join(', ')}`;
+          } else {
+            document.getElementById('track-name').textContent = 'No data available.';
+          }
+        })
+        .catch((error) => {
+          console.error('Error fetching data:', error);
+          document.getElementById('track-name').textContent = 'Error fetching data.';
+        });
+    }
+  </script>
+</body>
+</html>
