@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spotify Top 20 Tracks</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        background-color: rgb(0, 0, 0);
+        padding: 0;
+        margin: 0;
+        height: 100%;
+      }
+      .track {
+        margin: 20px;
+        display: inline-block;
+        width: 200px;
+      }
+      .track img {
+        max-width: 100%;
+        border-radius: 10px;
+      }
+      .track-name,
+      .artist-name {
+        font-size: 16px;
+        margin: 5px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <script
+      async
+      src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"
+    ></script>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@latest/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@latest/examples/jsm/"
+        }
+      }
+    </script>
+    <script type="module">
+      const clientId = "9b978a526547438481e18fe6155bf2f4";
+      const redirectUri = "http://127.0.0.1:5500/index.html";
+      // const redirectUri = "https://rileycho.github.io/SpotifyStats";
+
+      const authEndpoint = "https://accounts.spotify.com/authorize";
+      const apiEndpoint = "https://api.spotify.com/v1/me/top/tracks";
+      const scopes = ["user-top-read"];
+
+      // this is for the access token and is used to access spotify's api
+      const hash = window.location.hash
+        .substring(1)
+        .split("&")
+        .reduce((acc, item) => {
+          let parts = item.split("=");
+          acc[parts[0]] = decodeURIComponent(parts[1]);
+          return acc;
+        }, {});
+
+      window.location.hash = "";
+
+      let accessToken = hash.access_token;
+
+      // three js imports
+      import * as THREE from "three";
+
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+      let camera, scene, renderer;
+      let mesh;
+
+      // camera set up
+      camera = new THREE.PerspectiveCamera(
+        70,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        100
+      );
+      camera.position.z = 4;
+
+      scene = new THREE.Scene();
+
+      let group = new THREE.Group();
+      scene.add(group);
+
+      // temp cube loader!
+      //   const texture = new THREE.TextureLoader().load("temp.jpeg");
+      //   texture.colorSpace = THREE.SRGBColorSpace;
+
+      //   const geometry = new THREE.BoxGeometry(.01, 1, 1);
+      //   const material = new THREE.MeshBasicMaterial({ map: texture });
+
+      //   mesh = new THREE.Mesh(geometry, material);
+      //   scene.add(mesh);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setAnimationLoop(animate);
+      document.body.appendChild(renderer.domElement);
+
+      // orbit control set up
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.minDistance = 2;
+      controls.maxDistance = 250;
+
+      // animation function
+      function animate() {
+        // mesh.rotation.x += 0.005;
+        // mesh.rotation.y += 0.01;
+
+        renderer.render(scene, camera);
+      }
+
+      if (!accessToken) {
+        // if there is no access token then we need to make our own using the given redirecturi and clientid
+        const authUrl = `${authEndpoint}?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scopes.join(
+          "%20"
+        )}&response_type=token&show_dialog=true`;
+        window.location = authUrl;
+      } else {
+        // this is gathering all of the track objects that we will use
+        fetch(`${apiEndpoint}?limit=20`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            // this will be the counters for their positions
+            let column = 5;
+            let row = 4;
+
+            // loop will go through all of the tracks from the top 20
+            data.items.forEach((track) => {
+              const trackDiv = document.createElement("div");
+              trackDiv.className = "track";
+
+              const trackImage = document.createElement("img");
+              trackImage.src = track.album.images[0].url;
+              trackDiv.appendChild(trackImage);
+
+              const trackName = document.createElement("div");
+              trackName.className = "track-name";
+              trackName.textContent = track.name;
+              trackDiv.appendChild(trackName);
+
+              const artistNames = track.artists
+                .map((artist) => artist.name)
+                .join(", ");
+              const artistDiv = document.createElement("div");
+              artistDiv.className = "artist-name";
+              artistDiv.textContent = `by ${artistNames}`;
+              trackDiv.appendChild(artistDiv);
+
+              // album art loader
+              let texture = new THREE.TextureLoader().load(
+                track.album.images[0].url
+              );
+              texture.colorSpace = THREE.SRGBColorSpace;
+
+              const geometry = new THREE.BoxGeometry(0.01, 1, 1);
+              const material = new THREE.MeshBasicMaterial({ map: texture });
+
+              // translations to get the model into place
+              mesh = new THREE.Mesh(geometry, material);
+              mesh.translateX(column);
+              mesh.rotation.y = 1.57;
+              column = column - 1;
+              scene.add(mesh);
+            });
+          });
+      }
+
+      window.addEventListener("resize", onWindowResize);
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+    </script>
+  </body>
+</html>

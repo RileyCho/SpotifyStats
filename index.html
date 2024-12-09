@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <!-- spotify api pull link https://developer.spotify.com/dashboard/9b978a526547438481e18fe6155bf2f4 -->
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Spotify Top 20 Tracks</title>
@@ -8,7 +9,7 @@
       body {
         font-family: Arial, sans-serif;
         text-align: center;
-        background-color: aquamarine;
+        background-color: rgb(0, 0, 0);
         padding: 0;
         margin: 0;
         height: 100%;
@@ -30,8 +31,6 @@
     </style>
   </head>
   <body>
-    <h1>Your Top 20 Tracks</h1>
-    <div id="tracks-container"></div>
     <script
       async
       src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"
@@ -46,6 +45,12 @@
       }
     </script>
     <script type="module">
+      // three js imports
+      import * as THREE from "three";
+      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+      import { RectAreaLightHelper } from "three/addons/helpers/RectAreaLightHelper.js";
+      import { RectAreaLightUniformsLib } from "three/addons/lights/RectAreaLightUniformsLib.js";
+
       const clientId = "9b978a526547438481e18fe6155bf2f4";
       // const redirectUri = "http://127.0.0.1:5500/index.html";
       const redirectUri = "https://rileycho.github.io/SpotifyStats";
@@ -63,18 +68,68 @@
           acc[parts[0]] = decodeURIComponent(parts[1]);
           return acc;
         }, {});
-
       window.location.hash = "";
-
       let accessToken = hash.access_token;
 
-      // three js imports
-      import * as THREE from "three";
-
-      import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-
+      // const and scene set up
       let camera, scene, renderer;
-      let mesh;
+      let album;
+      scene = new THREE.Scene();
+      const raycaster = new THREE.Raycaster();
+      const mouse = new THREE.Vector2();
+      const albumMeshes = [];
+      const albumGeo = new THREE.BoxGeometry(0.01, 1, 1);
+
+      // floor set up
+      const floorGeo = new THREE.BoxGeometry(100, 0.1, 100);
+      const floorMat = new THREE.MeshStandardMaterial({
+        color: 0xbcbcbc,
+        roughness: 0.5,
+        metalness: 0,
+      });
+      let floor = new THREE.Mesh(floorGeo, floorMat);
+      floor.position.y = -3;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      // back wall set up
+      const wallGeo = new THREE.BoxGeometry(50, 50, 0.1);
+      const wallMat = new THREE.MeshStandardMaterial({
+        color: 0xbcbcbc,
+        roughness: 0.5,
+        metalness: 0,
+      });
+      let wall = new THREE.Mesh(wallGeo, wallMat);
+      wall.position.z = -0.2;
+      wall.position.y = 20;
+      wall.receiveShadow = true;
+      scene.add(wall);
+
+      // light set up
+      RectAreaLightUniformsLib.init();
+      const backLight = new THREE.RectAreaLight(0x4c00b0, 5, 4, 4);
+      backLight.position.set(0, 0, -0.05);
+      scene.add(backLight);
+
+      // ambient light set up
+      const ambient = new THREE.HemisphereLight(0xffffff, 0x8d8d8d, 0.15);
+      scene.add(ambient);
+
+      // spot light set up
+      let spotLight = new THREE.SpotLight(0xffffff, 100);
+      spotLight.position.set(2.5, 5, 4);
+      spotLight.angle = Math.PI / 6;
+      spotLight.penumbra = 1;
+      spotLight.decay = 2;
+      spotLight.distance = 0;
+
+      spotLight.castShadow = true;
+      spotLight.shadow.mapSize.width = 2048;
+      spotLight.shadow.mapSize.height = 2048;
+      spotLight.shadow.camera.near = 0.1;
+      spotLight.shadow.camera.far = 20;
+      spotLight.shadow.focus = 1;
+      scene.add(spotLight);
 
       // camera set up
       camera = new THREE.PerspectiveCamera(
@@ -83,48 +138,31 @@
         0.1,
         100
       );
-      camera.position.z = 2;
-
-      scene = new THREE.Scene();
-
-      let group = new THREE.Group();
-      scene.add(group);
-
-      // temp cube loader!
-      //   const texture = new THREE.TextureLoader().load("temp.jpeg");
-      //   texture.colorSpace = THREE.SRGBColorSpace;
-
-      //   const geometry = new THREE.BoxGeometry(.01, 1, 1);
-      //   const material = new THREE.MeshBasicMaterial({ map: texture });
-
-      //   mesh = new THREE.Mesh(geometry, material);
-      //   scene.add(mesh);
+      camera.position.z = 5;
 
       renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setAnimationLoop(animate);
       document.body.appendChild(renderer.domElement);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1;
 
-      // orbit control set up
-      const controls = new OrbitControls(camera, renderer.domElement);
-      controls.minDistance = 2;
-      controls.maxDistance = 250;
-
-      // animation function
-      function animate() {
-        // mesh.rotation.x += 0.005;
-        // mesh.rotation.y += 0.01;
-
-        renderer.render(scene, camera);
-      }
+      // // orbit control set up
+      // const controls = new OrbitControls(camera, renderer.domElement);
+      // controls.minDistance = 2;
+      // controls.maxDistance = 250;
 
       if (!accessToken) {
+        // if there is no access token then we need to make our own using the given redirecturi and clientid
         const authUrl = `${authEndpoint}?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scopes.join(
           "%20"
         )}&response_type=token&show_dialog=true`;
         window.location = authUrl;
       } else {
+        // this is gathering all of the track objects that we will use
         fetch(`${apiEndpoint}?limit=20`, {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -132,80 +170,92 @@
         })
           .then((response) => response.json())
           .then((data) => {
-            const container = document.getElementById("tracks-container");
-            container.innerHTML = "";
+            // for which track we are on
+            let counter = 0;
 
-            data.items.forEach((track) => {
-              const trackDiv = document.createElement("div");
-              trackDiv.className = "track";
+            let offset_y = 1.6;
 
-              const trackImage = document.createElement("img");
-              trackImage.src = track.album.images[0].url;
-              trackDiv.appendChild(trackImage);
+            for (let row = 0; row < 4; row++) {
+              let offset_x = -2.2;
+              for (let column = 0; column < 5; column++) {
+                // the current tradck we are on
+                let track = data.items[counter];
+                counter++;
+                console.log(track.name);
 
-              const trackName = document.createElement("div");
-              trackName.className = "track-name";
-              trackName.textContent = track.name;
-              trackDiv.appendChild(trackName);
+                // album art loader
+                let texture = new THREE.TextureLoader().load(
+                  track.album.images[0].url
+                );
+                texture.colorSpace = THREE.SRGBColorSpace;
 
-              const artistNames = track.artists
-                .map((artist) => artist.name)
-                .join(", ");
-              const artistDiv = document.createElement("div");
-              artistDiv.className = "artist-name";
-              artistDiv.textContent = `by ${artistNames}`;
-              trackDiv.appendChild(artistDiv);
+                const albumMat = new THREE.MeshStandardMaterial({
+                  map: texture,
+                  metalness: 0.2,
+                  roughness: 0.1,
+                });
 
-              container.appendChild(trackDiv);
-            });
-          })
-          .catch((error) => {
-            console.error("Error fetching data:", error);
-            document.getElementById("tracks-container").textContent =
-              "Error fetching data.";
+                // const material = new THREE.MeshBasicMaterial({map: texture});
+
+                // translations to get the model into place
+                album = new THREE.Mesh(albumGeo, albumMat);
+                album.translateX(offset_x);
+                album.translateY(offset_y);
+                offset_x = offset_x + 1.1;
+                album.rotation.y = 1.57;
+                album.receiveShadow = true;
+                album.castShadow = true;
+
+                albumMeshes.push(album);
+                scene.add(album);
+              }
+              offset_y = offset_y - 1.1;
+            }
           });
+
+        // Add targetZ property to each mesh
+        scene.children.forEach((child) => {
+          if (child.isMesh) {
+            child.userData.targetZ = 0; // Original z-position
+          }
+        });
       }
 
-      // if (!accessToken) {
-      //   // if there is no access token then we need to make our own using the given redirecturi and clientid
-      //   const authUrl = `${authEndpoint}?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scopes.join(
-      //     "%20"
-      //   )}&response_type=token&show_dialog=true`;
-      //   window.location = authUrl;
-      // } else {
-      //   // this is gathering all of the track objects that we will use
-      //   fetch(`${apiEndpoint}?limit=25`, {
-      //     headers: {
-      //       Authorization: `Bearer ${accessToken}`,
-      //     },
-      //   })
-      //     .then((response) => response.json())
-      //     .then((data) => {
-      //       // this is the loop for each track
-      //       // left off herrrrrrrrrrrrrreeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      //       data.items.forEach((track) => {
-      //         const trackDiv = document.createElement("div");
-      //         trackDiv.className = "track";
+      window.addEventListener("mousemove", onMouseMove, false);
 
-      //         const trackImage = document.createElement("img");
-      //         trackImage.src = track.album.images[0].url;
-      //         trackDiv.appendChild(trackImage);
+      let previousHovered = null;
 
-      //         const trackName = document.createElement("div");
-      //         trackName.className = "track-name";
-      //         trackName.textContent = track.name;
-      //         trackDiv.appendChild(trackName);
+      function onMouseMove(event) {
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(albumMeshes, true);
 
-      //         const artistNames = track.artists
-      //           .map((artist) => artist.name)
-      //           .join(", ");
-      //         const artistDiv = document.createElement("div");
-      //         artistDiv.className = "artist-name";
-      //         artistDiv.textContent = `by ${artistNames}`;
-      //         trackDiv.appendChild(artistDiv);
-      //       });
-      //     });
-      // }
+        if (intersects.length > 0) {
+          const hoveredObject = intersects[0].object;
+
+          // Reset the previous object's targetZ if it exists
+          if (previousHovered && previousHovered !== hoveredObject) {
+            previousHovered.userData.targetZ = 0;
+          }
+
+          // Set the targetZ for the hovered object
+          hoveredObject.userData.targetZ = 0.3;
+
+          // Store this as the currently hovered object
+          previousHovered = hoveredObject;
+
+          // Optionally change the cursor to indicate interactivity
+          document.body.style.cursor = "pointer";
+        } else {
+          // Reset the cursor and previous object's targetZ when nothing is hovered
+          if (previousHovered) {
+            previousHovered.userData.targetZ = 0;
+            previousHovered = null;
+          }
+          document.body.style.cursor = "default";
+        }
+      }
 
       window.addEventListener("resize", onWindowResize);
       function onWindowResize() {
@@ -213,6 +263,19 @@
         camera.updateProjectionMatrix();
 
         renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      // animation function
+      function animate() {
+        // mesh.rotation.x += 0.005;
+        // mesh.rotation.y += 0.01;
+        albumMeshes.forEach((album) => {
+          if (typeof album.userData.targetZ === "number") {
+            album.position.z +=
+              (album.userData.targetZ - album.position.z) * 0.1; // Smooth interpolation
+          }
+        });
+        renderer.render(scene, camera);
       }
     </script>
   </body>
